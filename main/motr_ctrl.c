@@ -9,29 +9,16 @@
 *  NOW:   FIGURE OUT how i will implement IMU / pid loop 
 */
 
+static const char *IMU_TAG = "imu read";
 static const char *TAG = "init";
+#define MPU9250_SENSOR_ADDR         0x68        /* MPU9250 sensor */
+#define MPU9250_WHO_AM_I_REG_ADDR   0x75        /* "who am I" register */
+#define MPU9250_PWR_MGMT_1_REG_ADDR 0x6B        /* power management register */
+#define MPU9250_RESET_BIT           7
 
-// Set motor direction
-void set_motor_direction(int motor, bool forward) {
-    if (motor == 0) {  // Motor A
-        gpio_set_level(GPIO_NUM_10, forward ? 1 : 0);
-        gpio_set_level(GPIO_NUM_11, forward ? 0 : 1);
-    } else if (motor == 1) {  // Motor B
-        gpio_set_level(GPIO_NUM_12, forward ? 1 : 0);
-        gpio_set_level(GPIO_NUM_13, forward ? 0 : 1);
-    }
-}
 
-// Set motor speed using PWM
-void set_motor_speed(int motor, uint32_t speed) {
-    if (motor == 0) {
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, speed);
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
-    } else if (motor == 1) {
-        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_1, speed);
-        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_1);
-    }
-}
+i2c_master_bus_handle_t bus_handle;
+i2c_master_dev_handle_t device_handle;
 
 static void motor_init(){
     // set LEDC timer 
@@ -120,13 +107,52 @@ static void i2c_init(i2c_master_bus_handle_t *bus_handle, i2c_master_dev_handle_
     ESP_ERROR_CHECK(i2c_master_bus_add_device(*bus_handle, &device_config, device_handle));
 }
 
+void set_motor_direction(int motor, bool forward){
+    if (motor == 0) {  // Motor A
+        gpio_set_level(GPIO_NUM_10, forward ? 1 : 0);
+        gpio_set_level(GPIO_NUM_11, forward ? 0 : 1);
+    } else if (motor == 1) {  // Motor B
+        gpio_set_level(GPIO_NUM_12, forward ? 1 : 0);
+        gpio_set_level(GPIO_NUM_13, forward ? 0 : 1);
+    }
+}
+
+void set_motor_speed(int motor, uint32_t speed){
+    if (motor == 0) {
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, speed);
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
+    } else if (motor == 1) {
+        ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_1, speed);
+        ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_1);
+    }
+}
+
+static esp_err_t mpu9250_register_read(i2c_master_dev_handle_t device_handle, uint8_t reg_addr, uint8_t *data, size_t len){
+    return i2c_master_transmit_receive(device_handle, &reg_addr, 1, data, len, 1000 / portTICK_PERIOD_MS);
+}
+
+void imu_task(void *arg){
+    int16_t gyro_x, gyro_y, gyro_z;
+    uint8_t raw_data[6];
+
+    while (1){
+        mpu9250_register_read(device_handle, MPU9250_SENSOR_ADDR, raw_data, 6);
+        gyro_x = (raw_data[0] << 8) | raw_data[1];
+        gyro_y = (raw_data[2] << 8) | raw_data[3];
+        gyro_z = (raw_data[4] << 8) | raw_data[5];
+
+        ESP_LOGI(IMU_TAG, "Gyro:  X=%d Y=%d Z=%d", gyro_x, gyro_y, gyro_z);
+
+        vTaskDelay(pdMS_TO_TICKS(100)); 
+    }
+}
+
 /* Attempting to read IMU measurement for processing */
-void app_main(void)
-{
-    i2c_master_bus_handle_t bus_handle;
-    i2c_master_dev_handle_t device_handle;
+void app_main(void){
     motor_init();
     ESP_LOGI(TAG, "GPIO/LEDC initialized succesfully");
     i2c_init(&bus_handle, &device_handle);
     ESP_LOGI(TAG, "I2C initialized succesfully");
+
+    xTaskCreate(imu_task, "imu_task", 4096, NULL, 5, NULL);
 }
