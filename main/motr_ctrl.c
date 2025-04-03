@@ -123,9 +123,10 @@ static void i2c_init(i2c_master_bus_handle_t *bus_handle, i2c_master_dev_handle_
 /* Attempting to read IMU measurement for processing */
 void app_main(void)
 {
+    i2c_master_bus_handle_t bus_handle;
+    i2c_master_dev_handle_t device_handle;
     motor_init();
-    ESP_LOGI(TAG, "LEDC & GPIO pins initialized");
-
-    
-    //xTaskCreate(joystick_task, "joystck_task", 2048, NULL, 5, NULL);
+    ESP_LOGI(TAG, "GPIO/LEDC initialized succesfully");
+    i2c_init(&bus_handle, &device_handle);
+    ESP_LOGI(TAG, "I2C initialized succesfully");
 }
