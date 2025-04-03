@@ -107,7 +107,7 @@ static void i2c_init(i2c_master_bus_handle_t *bus_handle, i2c_master_dev_handle_
     ESP_ERROR_CHECK(i2c_master_bus_add_device(*bus_handle, &device_config, device_handle));
 }
 
-void set_motor_direction(int motor, bool forward){
+static void set_motor_direction(int motor, bool forward){
     if (motor == 0) {  // Motor A
         gpio_set_level(GPIO_NUM_10, forward ? 1 : 0);
         gpio_set_level(GPIO_NUM_11, forward ? 0 : 1);
@@ -117,7 +117,7 @@ void set_motor_direction(int motor, bool forward){
     }
 }
 
-void set_motor_speed(int motor, uint32_t speed){
+static void set_motor_speed(int motor, uint32_t speed){
     if (motor == 0) {
         ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0, speed);
         ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL_0);
@@ -131,7 +131,7 @@ static esp_err_t mpu9250_register_read(i2c_master_dev_handle_t device_handle, ui
     return i2c_master_transmit_receive(device_handle, &reg_addr, 1, data, len, 1000 / portTICK_PERIOD_MS);
 }
 
-void imu_task(void *arg){
+static void imu_task(void *arg){
     int16_t gyro_x, gyro_y, gyro_z;
     uint8_t raw_data[6];
 
